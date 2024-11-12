@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voice Recognition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #recordButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #recordButton:hover {
+            background-color: #0056b3;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #copyIcon, #refreshButton {
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            fill: #28a745;  /* Green color for the copy icon */
+            transition: fill 0.3s;
+        }
+
+        #copyIcon:hover, #refreshButton:hover {
+            fill: #218838;  /* Darker green on hover */
+        }
+
+        #refreshButton {
+            margin-left: 10px;
+            fill: #ffc107;  /* Yellow color for the refresh icon */
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Voice Recognition</h1>
+    <button id="recordButton">Record</button>
+    <div id="result">
+        <span id="recognizedText"></span>
+        <svg id="copyIcon" viewBox="0 0 24 24" style="display:none;">
+            <path d="M19 3H5c-1.1 0-1.99.89-1.99 2L3 19c0 1.1.89 2 1.99 2h14c1.1 0 2-.89 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"></path>
+        </svg>
+        <svg id="refreshButton" viewBox="0 0 24 24" style="display:none;">
+            <path d="M12 4V1l-3 3 3 3V5c4.42 0 8 3.58 8 8s-3.58 8-8 8c-2.21 0-4.21-.89-5.66-2.34l1.42-1.42c.94 1.03 2.24 1.67 3.84 1.67 2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path>
+        </svg>
+    </div>
+
+    <script>
+        const recordButton = document.getElementById('recordButton');
+        const recognizedTextElem = document.getElementById('recognizedText');
+        const copyIcon = document.getElementById('copyIcon');
+        const refreshButton = document.getElementById('refreshButton');
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // Start or stop recording based on button state
+        recordButton.onclick = async () => {
+            if (recordButton.innerText === "Record") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks);
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.webm');
+
+                    const response = await fetch('/recognize', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    const recognizedText = result.text || result.error;
+                    recognizedTextElem.innerText = recognizedText;
+
+                    // Show the copy and refresh buttons after recognition
+                    copyIcon.style.display = 'inline-block';
+                    refreshButton.style.display = 'inline-block';
+
+                    // Copy text to clipboard when copy icon is clicked
+                    copyIcon.onclick = () => {
+                        navigator.clipboard.writeText(recognizedText).catch((err) => {
+                            console.error("Failed to copy text: ", err);
+                        });
+                    };
+
+                    // Refresh text when refresh icon is clicked
+                    refreshButton.onclick = () => {
+                        recognizedTextElem.innerText = '';  // Clear the text
+                        copyIcon.style.display = 'none';  // Hide copy icon
+                        refreshButton.style.display = 'none';  // Hide refresh icon
+                    };
+                };
+
+                recordButton.innerText = 'Stop';
+                recordButton.onclick = () => {
+                    mediaRecorder.stop();
+                    recordButton.innerText = 'Record';
+                };
+            }
+        };
+    </script>
+</body>
+</html>
